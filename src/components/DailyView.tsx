@@ -6,6 +6,12 @@ import { InputBar } from './InputBar';
 import { format, addDays, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 
+import { EntryType } from '../types';
+
+const ENTRY_SORT_ORDER: Record<string, number> = {
+  priority: 0, task: 1, event: 2, note: 3, killed: 4, done: 5, migrated: 6, scheduled: 6,
+};
+
 export function DailyView() {
   const { logs, updateEntry, clearDay } = useVault();
   const [date, setDate] = useState(getTodayDateString());
@@ -140,7 +146,9 @@ export function DailyView() {
               No entries yet. Start typing to capture.
             </div>
           ) : (
-            dayLog.entries.map((entry, idx) => (
+            [...dayLog.entries]
+              .sort((a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99))
+              .map((entry, idx) => (
               <EntryItem
                 key={entry.id}
                 entry={entry}

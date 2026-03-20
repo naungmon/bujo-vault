@@ -52,6 +52,20 @@ const bujoApi = {
   // Analytics
   analyticsStreak: () => ipcRenderer.invoke('analytics_streak'),
   analyticsWeekly: () => ipcRenderer.invoke('analytics_weekly'),
+  analyticsCoach: () => ipcRenderer.invoke('analytics_coach'),
+
+  // Dump retry
+  dumpRetry: () => ipcRenderer.invoke('dump_retry'),
+
+  // Context
+  contextGet: () => ipcRenderer.invoke('context_get'),
+  contextSave: (section: string, content: string) =>
+    ipcRenderer.invoke('context_save', section, content),
+  contextEvalSave: (monthLabel: string, evalText: string) =>
+    ipcRenderer.invoke('context_eval_save', monthLabel, evalText),
+
+  // Future
+  futureMarkDone: (text: string) => ipcRenderer.invoke('future_mark_done', text),
 
   // Config
   configGet: () => ipcRenderer.invoke('config_get'),

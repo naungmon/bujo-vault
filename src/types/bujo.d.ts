@@ -56,6 +56,27 @@ export interface BuJoApi {
     totalEntries: number; done: number; killed: number; migrated: number;
     tasks: number; streak: number; completionRate: number
   }>
+  analyticsCoach(): Promise<{
+    period: string; streak: number; momentum: string; completionRate: number;
+    priorityAlignment: number; totalEntries: number;
+    stuckTasks: Array<{ text: string; count: number }>;
+    killThemes: Record<string, number>;
+    stallStats: { avg: number; median: number; max: number; count: number };
+    eventDensity: Record<string, { days: number; completionRate: number }>;
+    noteHeavyDays: string[]; nudge: string; empty: boolean;
+    productiveTime: string; tasksPerDayAvg: number
+  }>
+
+  // Dump retry
+  dumpRetry(): Promise<{ entries?: Array<[string, string]>; count?: number; message?: string; error?: string }>
+
+  // Context
+  contextGet(): Promise<{ me: string; evals: string }>
+  contextSave(section: string, content: string): Promise<{ success: boolean }>
+  contextEvalSave(monthLabel: string, evalText: string): Promise<{ success: boolean }>
+
+  // Future
+  futureMarkDone(text: string): Promise<{ success: boolean; error?: string }>
 
   // Config
   configGet(): Promise<{ api_key: string; model: string; vault_path: string; theme: string }>

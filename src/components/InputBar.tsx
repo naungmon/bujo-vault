@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useVault } from '../store/VaultContext';
 import { EntryType } from '../types';
 import { parseDump } from '../services/ai';
-import { Sparkles, Loader2, Command } from 'lucide-react';
+import { Sparkles, Loader2, Command, RotateCcw } from 'lucide-react';
 
 interface InputBarProps {
   date: string;
@@ -31,6 +31,7 @@ export function InputBar({ date }: InputBarProps) {
   const [value, setValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -47,6 +48,46 @@ export function InputBar({ date }: InputBarProps) {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  const handleDump = async (text: string) => {
+    setIsProcessing(true);
+    setError('');
+    try {
+      const parsed = await parseDump(text);
+      if (parsed && parsed.length > 0) {
+        addMultipleEntries(date, parsed);
+      } else {
+        addEntry(date, 'note', text);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to parse dump. Check your API key in Settings.");
+    } finally {
+      setIsProcessing(false);
+      setValue('');
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!window.bujo) return;
+    setIsProcessing(true);
+    setError('');
+    try {
+      const result = await window.bujo.dumpRetry();
+      if (result.error) {
+        setError(result.error);
+      } else if (result.message) {
+        setError(result.message);
+      } else if (result.count && result.count > 0) {
+        setRetryCount(result.count);
+        setTimeout(() => setRetryCount(null), 3000);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleKeyDown = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && value.trim()) {
@@ -71,22 +112,7 @@ export function InputBar({ date }: InputBarProps) {
       }
 
       if (isDump) {
-        setIsProcessing(true);
-        try {
-          const parsed = await parseDump(dumpText);
-          if (parsed && parsed.length > 0) {
-            addMultipleEntries(date, parsed);
-          } else {
-            // Fallback if AI fails to parse
-            addEntry(date, 'note', dumpText);
-          }
-        } catch (err) {
-          console.error(err);
-          setError("Failed to parse dump. Check your API key in Settings.");
-        } finally {
-          setIsProcessing(false);
-          setValue('');
-        }
+        handleDump(dumpText);
         return;
       }
 
@@ -137,6 +163,14 @@ export function InputBar({ date }: InputBarProps) {
           className="flex-1 bg-transparent border-none outline-none text-zinc-100 py-4 font-sans placeholder:text-zinc-600 disabled:opacity-50 text-base"
         />
         <div className="pl-3 flex items-center gap-3 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300">
+          <button
+            onClick={handleRetry}
+            disabled={isProcessing}
+            className="p-1 rounded hover:bg-zinc-800 text-zinc-600 hover:text-zinc-300 transition-colors"
+            title="Retry unprocessed dumps"
+          >
+            <RotateCcw size={14} />
+          </button>
           <div className="hidden sm:flex items-center gap-1 text-xs font-medium text-zinc-600">
             <Command size={10} /> K
           </div>
@@ -144,6 +178,7 @@ export function InputBar({ date }: InputBarProps) {
         </div>
       </div>
       {error && <p className="text-xs text-red-400 mt-2 px-4">{error}</p>}
+      {retryCount !== null && <p className="text-xs text-emerald-400 mt-2 px-4">Re-parsed {retryCount} entries from dump blocks.</p>}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, globalShortcut, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync, statSync } from 'fs'
 import { homedir } from 'os'
 import * as chokidar from 'chokidar'
 
@@ -380,7 +380,11 @@ function readTextSafe(filePath: string): string {
   try {
     return readFileSync(filePath, 'utf-8')
   } catch {
-    return ''
+    try {
+      return readFileSync(filePath, 'latin1')
+    } catch {
+      return ''
+    }
   }
 }
 
@@ -569,6 +573,268 @@ function calculateStreak(): number {
   }
 
   return streak
+}
+
+function loadRange(days: number) {
+  const logs = []
+  for (let i = days - 1; i >= 0; i--) {
+    logs.push(dayLogFromFile(vaultPath, localDateStr(-i)))
+  }
+  return logs
+}
+
+function loadAll() {
+  const logs: any[] = []
+  const dailyDir = path.join(vaultPath, 'daily')
+  if (!existsSync(dailyDir)) return logs
+  const files = readdirSync(dailyDir).filter(f => f.endsWith('.md')).sort()
+  for (const file of files) {
+    const dateStr = file.replace('.md', '')
+    logs.push(dayLogFromFile(vaultPath, dateStr))
+  }
+  return logs
+}
+
+function countByType(entries: any[], type: string) {
+  return entries.filter(e => e.type === type).length
+}
+
+function migrationPatterns(): Array<{ text: string; count: number; firstSeen: string; lastSeen: string }> {
+  const migrated: Record<string, { text: string; count: number; firstSeen: string; lastSeen: string }> = {}
+  for (const log of loadAll()) {
+    for (const entry of log.entries) {
+      if (entry.type === 'task' || entry.type === 'migrated' || entry.type === 'priority') {
+        const key = entry.content.toLowerCase().trim()
+        if (!migrated[key]) {
+          migrated[key] = { text: entry.content, count: 0, firstSeen: log.date, lastSeen: log.date }
+        }
+        migrated[key].count++
+        migrated[key].lastSeen = log.date
+      }
+    }
+  }
+  return Object.values(migrated).filter(v => v.count >= 3).sort((a, b) => b.count - a.count)
+}
+
+function priorityAlignment(days: number = 7): number {
+  const logs = loadRange(days)
+  let totalPriorities = 0
+  let donePriorities = 0
+  for (const log of logs) {
+    const priorityTexts = new Set(log.entries.filter(e => e.type === 'priority').map(e => e.content.toLowerCase()))
+    const doneTexts = new Set(log.entries.filter(e => e.type === 'done').map(e => e.content.toLowerCase()))
+    totalPriorities += priorityTexts.size
+    for (const t of priorityTexts) {
+      if (doneTexts.has(t)) donePriorities++
+    }
+  }
+  return totalPriorities > 0 ? Math.round((donePriorities / totalPriorities) * 100) / 100 : 0
+}
+
+function donePendingRatio(days: number = 7): number {
+  const logs = loadRange(days)
+  let done = 0
+  let pending = 0
+  for (const log of logs) {
+    done += countByType(log.entries, 'done')
+    pending += countByType(log.entries, 'task') + countByType(log.entries, 'priority')
+  }
+  const total = done + pending
+  return total > 0 ? Math.round((done / total) * 100) / 100 : 0
+}
+
+function momentumScore(): string {
+  const thisWeek = donePendingRatio(7)
+  const twoWeeks = loadRange(14)
+  let lastWeekDone = 0
+  let lastWeekPending = 0
+  for (let i = 7; i < 14 && i < twoWeeks.length; i++) {
+    lastWeekDone += countByType(twoWeeks[i].entries, 'done')
+    lastWeekPending += countByType(twoWeeks[i].entries, 'task') + countByType(twoWeeks[i].entries, 'priority')
+  }
+  const lastWeekTotal = lastWeekDone + lastWeekPending
+  const lastWeek = lastWeekTotal > 0 ? lastWeekDone / lastWeekTotal : 0
+
+  const weekLogs = loadRange(7)
+  const totalEntries = weekLogs.reduce((sum, l) => sum + l.entries.filter(e => e.type !== 'scheduled').length, 0)
+  if (totalEntries < 3) return 'new'
+  if (thisWeek < 0.2 && lastWeek < 0.2) return 'stalled'
+  if (thisWeek < lastWeek - 0.2) return 'stalling'
+  if (thisWeek > lastWeek + 0.2) return 'building'
+  return 'steady'
+}
+
+function mostProductiveTime(): string {
+  const buckets: Record<string, number> = { morning: 0, afternoon: 0, evening: 0, late: 0 }
+  let totalDays = 0
+  for (const log of loadRange(30)) {
+    if (!log.entries.length) continue
+    try {
+      const filePath = path.join(vaultPath, 'daily', `${log.date}.md`)
+      if (!existsSync(filePath)) continue
+      const { mtime } = statSync(filePath)
+      const hour = new Date(mtime).getHours()
+      if (hour >= 5 && hour < 12) buckets.morning += log.entries.length
+      else if (hour >= 12 && hour < 17) buckets.afternoon += log.entries.length
+      else if (hour >= 17 && hour < 21) buckets.evening += log.entries.length
+      else buckets.late += log.entries.length
+      totalDays++
+    } catch { continue }
+  }
+  if (totalDays < 3) return 'not enough data'
+  const top = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0]
+  return `${top[0]} (${top[1]} entries from ${totalDays} days)`
+}
+
+function tasksPerDayAvg(): number {
+  const logs = loadRange(30)
+  let daysWithEntries = 0
+  let totalDone = 0
+  for (const log of logs) {
+    if (log.entries.length > 0) {
+      daysWithEntries++
+      totalDone += countByType(log.entries, 'done')
+    }
+  }
+  return daysWithEntries > 0 ? Math.round((totalDone / daysWithEntries) * 10) / 10 : 0
+}
+
+function stallDuration(killText: string): number | null {
+  const pattern = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/
+  const m = killText.match(pattern)
+  if (!m) return null
+  const killDateStr = m[1]
+  const taskText = m[2].toLowerCase().trim()
+  let firstSeen: string | null = null
+  for (const log of loadAll()) {
+    for (const entry of log.entries) {
+      if ((entry.type === 'task' || entry.type === 'priority') && entry.content.toLowerCase().trim() === taskText) {
+        if (!firstSeen || log.date < firstSeen) firstSeen = log.date
+      }
+    }
+  }
+  if (!firstSeen) return null
+  const killDate = new Date(killDateStr)
+  const first = new Date(firstSeen)
+  return Math.round((killDate.getTime() - first.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function stallStats(theme?: string): { avg: number; median: number; max: number; count: number } {
+  const durations: number[] = []
+  const pattern = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/
+  for (const log of loadAll()) {
+    for (const entry of log.entries) {
+      if (entry.type !== 'killed') continue
+      const m = entry.content.match(pattern)
+      if (!m) continue
+      const rest = m[2]
+      const words = rest.toLowerCase().split(/\s+/)
+      if (!words.length) continue
+      if (theme && words[0] !== theme.toLowerCase()) continue
+      const duration = stallDuration(entry.content)
+      if (duration !== null) durations.push(duration)
+    }
+  }
+  if (!durations.length) return { avg: 0, median: 0, max: 0, count: 0 }
+  durations.sort((a, b) => a - b)
+  const count = durations.length
+  const avg = Math.round((durations.reduce((s, d) => s + d, 0) / count) * 10) / 10
+  const mid = Math.floor(count / 2)
+  const median = count % 2 === 1 ? durations[mid] : (durations[mid - 1] + durations[mid]) / 2
+  return { avg, median, max: Math.max(...durations), count }
+}
+
+function eventDensityMapping(): Record<string, { days: number; completionRate: number }> {
+  const buckets: Record<string, { days: number; done: number; pending: number }> = {
+    low: { days: 0, done: 0, pending: 0 },
+    medium: { days: 0, done: 0, pending: 0 },
+    high: { days: 0, done: 0, pending: 0 },
+  }
+  for (const log of loadRange(30)) {
+    const eventCount = countByType(log.entries, 'event')
+    const bucket = eventCount <= 1 ? 'low' : eventCount === 2 ? 'medium' : 'high'
+    buckets[bucket].days++
+    buckets[bucket].done += countByType(log.entries, 'done')
+    buckets[bucket].pending += countByType(log.entries, 'task') + countByType(log.entries, 'priority')
+  }
+  const result: Record<string, { days: number; completionRate: number }> = {}
+  for (const [key, data] of Object.entries(buckets)) {
+    const total = data.done + data.pending
+    result[key] = { days: data.days, completionRate: total > 0 ? Math.round((data.done / total) * 100) / 100 : 0 }
+  }
+  return result
+}
+
+function eventHeavyDayNudge(): string | null {
+  for (const log of loadRange(7)) {
+    const events = countByType(log.entries, 'event')
+    const done = countByType(log.entries, 'done')
+    const pending = countByType(log.entries, 'task') + countByType(log.entries, 'priority')
+    if (events >= 3 && done === 0 && pending > 0) {
+      const d = new Date(log.date + 'T12:00:00')
+      return `${events} events on ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} and zero tasks done — overcommit alert.`
+    }
+  }
+  return null
+}
+
+function noteDensity(): Array<{ date: string; count: number; heavy: boolean }> {
+  return loadRange(14).map(log => {
+    const count = countByType(log.entries, 'note')
+    return { date: log.date, count, heavy: count >= 5 }
+  })
+}
+
+function noteHeavyDays(): Array<{ date: string; count: number }> {
+  return noteDensity().filter(d => d.heavy).sort((a, b) => b.count - a.count)
+}
+
+function coachingNudge(): string {
+  const stuck = migrationPatterns()
+  if (stuck.length && stuck[0].count >= 4) {
+    return `You've migrated "${stuck[0].text}" ${stuck[0].count} times. Kill it or do it today.`
+  }
+  const overcommit = eventHeavyDayNudge()
+  if (overcommit) return overcommit
+
+  const killThemes = killThemesAnalysis()
+  const topTheme = Object.entries(killThemes)[0]
+  if (topTheme && topTheme[1] >= 3) {
+    const stats = stallStats(topTheme[0])
+    if (stats.count >= 3 && stats.avg > 0) {
+      return `You carried '${topTheme[0]}' for ${stats.avg} days on average before dropping (${topTheme[1]} times).`
+    }
+    return `You tend to drop ${topTheme[0]} tasks (${topTheme[1]} times). Worth examining why.`
+  }
+  const heavy = noteHeavyDays()
+  if (heavy.length >= 2) {
+    return `Heavy note days: ${heavy.slice(0, 2).map(d => d.date).join(', ')} — dumps, not daily rhythm.`
+  }
+  const alignment = priorityAlignment()
+  if (alignment < 0.4) {
+    return "You're setting priorities but not finishing them. Fewer priorities, more action."
+  }
+  const momentum = momentumScore()
+  if (momentum === 'building') return 'Completion rate is up this week. Keep going.'
+  if (momentum === 'stalled') return 'Completion rate is low. Pick one small thing and finish it.'
+  const s = calculateStreak()
+  if (s >= 7) return `${s}-day streak. The habit is forming.`
+  return 'No patterns yet. Keep logging.'
+}
+
+function killThemesAnalysis(): Record<string, number> {
+  const themes: Record<string, number> = {}
+  for (const log of loadAll()) {
+    for (const entry of log.entries) {
+      if (entry.type === 'killed') {
+        const words = entry.content.toLowerCase().split(/\s+/)
+        if (words.length && words[0].length > 3) {
+          themes[words[0]] = (themes[words[0]] || 0) + 1
+        }
+      }
+    }
+  }
+  return Object.fromEntries(Object.entries(themes).sort((a, b) => b[1] - a[1]).slice(0, 10))
 }
 
 function createWindow() {
@@ -1039,6 +1305,141 @@ function setupIpcHandlers() {
       streak: calculateStreak(),
       completionRate: (tasks + done) > 0 ? Math.round((done / (tasks + done)) * 100) : 0,
     }
+  })
+
+  // Full coach report (mirrors bujo-ai's full_report)
+  ipcMain.handle('analytics_coach', async () => {
+    const logs7 = loadRange(7)
+    const totalEntries = logs7.reduce((sum, l) => sum + l.entries.filter(e => e.type !== 'scheduled').length, 0)
+
+    return {
+      period: `${localDateStr(-6)} to ${localDateStr()}`,
+      streak: calculateStreak(),
+      momentum: momentumScore(),
+      completionRate: donePendingRatio(7),
+      priorityAlignment: priorityAlignment(7),
+      totalEntries,
+      stuckTasks: migrationPatterns().slice(0, 5),
+      killThemes: killThemesAnalysis(),
+      stallStats: stallStats(),
+      eventDensity: eventDensityMapping(),
+      noteHeavyDays: noteHeavyDays().map(d => d.date),
+      nudge: coachingNudge(),
+      empty: totalEntries < 3,
+      productiveTime: mostProductiveTime(),
+      tasksPerDayAvg: tasksPerDayAvg(),
+    }
+  })
+
+  // Dump --retry: find unprocessed dump blocks and re-parse
+  ipcMain.handle('dump_retry', async () => {
+    const todayPath = path.join(vaultPath, 'daily', `${localDateStr()}.md`)
+    if (!existsSync(todayPath)) return { error: 'No log file for today' }
+
+    const content = readTextSafe(todayPath)
+    const lines = content.split('\n')
+    const unprocessed: string[] = []
+    let i = 0
+    while (i < lines.length) {
+      if (lines[i].trim() === '## dump') {
+        const dumpLines: string[] = []
+        i++
+        while (i < lines.length && lines[i].trim() !== '## /dump') {
+          dumpLines.push(lines[i])
+          i++
+        }
+        i++ // skip ## /dump
+        // Check if structured entries follow
+        let hasEntries = false
+        if (i < lines.length) {
+          const nextLine = lines[i].trim()
+          if (nextLine && 'txne*>k'.includes(nextLine[0]) && nextLine[1] === ' ') {
+            hasEntries = true
+          }
+        }
+        if (!hasEntries && dumpLines.length) {
+          unprocessed.push(dumpLines.join('\n'))
+        }
+      } else {
+        i++
+      }
+    }
+
+    if (!unprocessed.length) return { entries: [], message: 'No unprocessed dump blocks found' }
+
+    const allEntries: Array<[string, string]> = []
+    for (const rawText of unprocessed) {
+      const result = await aiParseDump(rawText)
+      if (result) allEntries.push(...result)
+    }
+
+    // Append parsed entries
+    for (const [type, content] of allEntries) {
+      const sym = SYMBOL_MAP[type] || 't'
+      const before = readTextSafe(todayPath)
+      writeFileSync(todayPath, before + `${sym} ${content}\n`)
+    }
+
+    return { entries: allEntries, count: allEntries.length }
+  })
+
+  // User context
+  ipcMain.handle('context_get', async () => {
+    const contextDir = path.join(vaultPath, 'context')
+    if (!existsSync(contextDir)) mkdirSync(contextDir, { recursive: true })
+
+    const mePath = path.join(contextDir, 'me.md')
+    const evalsPath = path.join(contextDir, 'evals.md')
+
+    return {
+      me: existsSync(mePath) ? readTextSafe(mePath) : '',
+      evals: existsSync(evalsPath) ? readTextSafe(evalsPath) : '',
+    }
+  })
+
+  ipcMain.handle('context_save', async (_, section: string, content: string) => {
+    const contextDir = path.join(vaultPath, 'context')
+    if (!existsSync(contextDir)) mkdirSync(contextDir, { recursive: true })
+
+    const mePath = path.join(contextDir, 'me.md')
+    let existing = existsSync(mePath) ? readTextSafe(mePath) : '# About Me\n\n'
+
+    // Update or create section
+    const header = `## ${section}`
+    const regex = new RegExp(`(## ${section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n)(.*?)(?=\\n## |\\Z)`, 's')
+    if (existing.includes(header)) {
+      existing = existing.replace(regex, `$1${content.trim()}\n`)
+    } else {
+      existing = existing.trimEnd() + `\n\n${header}\n\n${content.trim()}\n`
+    }
+
+    writeFileSync(mePath, existing)
+    return { success: true }
+  })
+
+  ipcMain.handle('context_eval_save', async (_, monthLabel: string, evalText: string) => {
+    const contextDir = path.join(vaultPath, 'context')
+    if (!existsSync(contextDir)) mkdirSync(contextDir, { recursive: true })
+
+    const evalsPath = path.join(contextDir, 'evals.md')
+    let existing = existsSync(evalsPath) ? readTextSafe(evalsPath) : '# Eval History\n\nMonthly pattern summaries.\n\n'
+    existing = existing.trimEnd() + `\n\n## ${monthLabel}\n\n${evalText.trim()}\n`
+    writeFileSync(evalsPath, existing)
+    return { success: true }
+  })
+
+  // Mark future entry done
+  ipcMain.handle('future_mark_done', async (_, text: string) => {
+    const futurePath = path.join(vaultPath, 'future', 'future.md')
+    if (!existsSync(futurePath)) return { error: 'Future log not found' }
+
+    const content = readTextSafe(futurePath)
+    const oldLine = `> ${text}`
+    const newLine = `x ${text}`
+    if (!content.includes(oldLine)) return { error: 'Entry not found' }
+
+    writeFileSync(futurePath, content.replace(oldLine, newLine))
+    return { success: true }
   })
 
   // AI Perspective Review
