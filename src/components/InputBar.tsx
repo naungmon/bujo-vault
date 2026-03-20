@@ -117,7 +117,7 @@ export function InputBar({ date }: InputBarProps) {
       }
 
       // Check for prefixes
-      let type: EntryType = 'note';
+      let type: EntryType = 'task';
       let content = text;
 
       for (const [prefix, mappedType] of Object.entries(PREFIX_MAP)) {

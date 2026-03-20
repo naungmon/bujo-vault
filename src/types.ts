@@ -8,23 +8,8 @@ export interface Entry {
 }
 
 export interface DailyLog {
-  date: string; // YYYY-MM-DD
+  date: string;
   entries: Entry[];
 }
 
 export type ViewType = 'daily' | 'monthly' | 'future' | 'migration' | 'review' | 'search' | 'coach' | 'settings';
-
-export interface CoachAnalysis {
-  totalEntries: number;
-  tasks: number;
-  done: number;
-  killed: number;
-  migrated: number;
-  priorities: number;
-  completionRate: number;
-  momentum: 'building' | 'steady' | 'stalling' | 'stalled';
-  streak: number;
-  stuckTasks: string[];
-  killThemes: string[];
-  question: string;
-}

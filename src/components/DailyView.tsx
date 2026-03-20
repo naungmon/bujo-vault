@@ -58,6 +58,9 @@ export function DailyView() {
   };
 
   const dayLog = logs[date] || { date, entries: [] };
+  const sortedEntries = [...dayLog.entries].sort(
+    (a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99)
+  );
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName;
@@ -68,17 +71,21 @@ export function DailyView() {
       setFocusedIndex((prev) => Math.max(0, prev - 1));
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setFocusedIndex((prev) => {
-        const log = logs[dateRef.current];
-        const max = Math.max(0, (log?.entries.length || 1) - 1);
-        return Math.min(max, prev + 1);
-      });
+      const log = logs[dateRef.current];
+      const sorted = log ? [...log.entries].sort(
+        (a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99)
+      ) : [];
+      const max = Math.max(0, sorted.length - 1);
+      setFocusedIndex((prev) => Math.min(max, prev + 1));
     } else if (e.key === 'Escape') {
       setFocusedIndex(-1);
     } else if (e.key === 'x' && focusedRef.current >= 0) {
       const log = logs[dateRef.current];
       if (log) {
-        const entry = log.entries[focusedRef.current];
+        const sorted = [...log.entries].sort(
+          (a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99)
+        );
+        const entry = sorted[focusedRef.current];
         if (entry && entry.type === 'task') {
           updateEntry(dateRef.current, entry.id, { type: 'done' });
         } else if (entry && entry.type === 'done') {
@@ -88,7 +95,10 @@ export function DailyView() {
     } else if (e.key === 'k' && focusedRef.current >= 0) {
       const log = logs[dateRef.current];
       if (log) {
-        const entry = log.entries[focusedRef.current];
+        const sorted = [...log.entries].sort(
+          (a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99)
+        );
+        const entry = sorted[focusedRef.current];
         if (entry && entry.type !== 'killed') {
           updateEntry(dateRef.current, entry.id, { type: 'killed' });
         }
@@ -96,7 +106,10 @@ export function DailyView() {
     } else if (e.key === '>' && focusedRef.current >= 0) {
       const log = logs[dateRef.current];
       if (log) {
-        const entry = log.entries[focusedRef.current];
+        const sorted = [...log.entries].sort(
+          (a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99)
+        );
+        const entry = sorted[focusedRef.current];
         if (entry && entry.type !== 'migrated') {
           updateEntry(dateRef.current, entry.id, { type: 'migrated' });
         }
@@ -141,14 +154,12 @@ export function DailyView() {
         </div>
 
         <div className="space-y-1 mb-8">
-          {dayLog.entries.length === 0 ? (
+          {sortedEntries.length === 0 ? (
             <div className="text-zinc-600 italic py-4 text-sm">
               No entries yet. Start typing to capture.
             </div>
           ) : (
-            [...dayLog.entries]
-              .sort((a, b) => (ENTRY_SORT_ORDER[a.type] ?? 99) - (ENTRY_SORT_ORDER[b.type] ?? 99))
-              .map((entry, idx) => (
+            sortedEntries.map((entry, idx) => (
               <EntryItem
                 key={entry.id}
                 entry={entry}

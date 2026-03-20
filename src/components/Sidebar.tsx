@@ -23,16 +23,16 @@ export function Sidebar() {
     setDragOverId(null);
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
-      if (data.id && data.date) {
-        let targetDate = '';
-        if (targetId === 'tomorrow') {
-          const tomorrow = addDays(new Date(), 1);
-          targetDate = format(tomorrow, 'yyyy-MM-dd');
-        } else if (targetId === 'monthly') {
-          targetDate = format(new Date(), 'yyyy-MM') + '-monthly';
-        } else if (targetId === 'future') {
-          targetDate = format(addMonths(new Date(), 1), 'yyyy-MM') + '-future';
-        }
+          if (data.id && data.date) {
+          let targetDate = '';
+          if (targetId === 'tomorrow') {
+            const tomorrow = addDays(new Date(), 1);
+            targetDate = format(tomorrow, 'yyyy-MM-dd');
+          } else if (targetId === 'monthly') {
+            targetDate = format(new Date(), 'yyyy-MM');
+          } else if (targetId === 'future') {
+            targetDate = format(addMonths(new Date(), 1), 'MMMM yyyy') + '-future';
+          }
 
         if (targetDate && data.date !== targetDate) {
           migrateEntry(data.id, data.date, targetDate);

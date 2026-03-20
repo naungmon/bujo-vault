@@ -473,7 +473,7 @@ function getModel(): string {
 
 function hasExplicitPrefix(text: string): boolean {
   const stripped = text.trim()
-  if (stripped.length > 2 && stripped[1] === ' ' && 'tnekx>*'.includes(stripped[0])) {
+  if (stripped.length > 2 && stripped[1] === ' ' && 'tnekx>*<'.includes(stripped[0])) {
     return true
   }
   const lower = stripped.toLowerCase()
@@ -648,16 +648,21 @@ function momentumScore(): string {
   const twoWeeks = loadRange(14)
   let lastWeekDone = 0
   let lastWeekPending = 0
-  for (let i = 7; i < 14 && i < twoWeeks.length; i++) {
-    lastWeekDone += countByType(twoWeeks[i].entries, 'done')
-    lastWeekPending += countByType(twoWeeks[i].entries, 'task') + countByType(twoWeeks[i].entries, 'priority')
+  let thisWeekEntries = 0
+  for (let i = 0; i < twoWeeks.length; i++) {
+    const done = countByType(twoWeeks[i].entries, 'done')
+    const pending = countByType(twoWeeks[i].entries, 'task') + countByType(twoWeeks[i].entries, 'priority')
+    if (i >= 7) {
+      lastWeekDone += done
+      lastWeekPending += pending
+    } else {
+      thisWeekEntries += twoWeeks[i].entries.filter(e => e.type !== 'scheduled').length
+    }
   }
   const lastWeekTotal = lastWeekDone + lastWeekPending
   const lastWeek = lastWeekTotal > 0 ? lastWeekDone / lastWeekTotal : 0
 
-  const weekLogs = loadRange(7)
-  const totalEntries = weekLogs.reduce((sum, l) => sum + l.entries.filter(e => e.type !== 'scheduled').length, 0)
-  if (totalEntries < 3) return 'new'
+  if (thisWeekEntries < 3) return 'new'
   if (thisWeek < 0.2 && lastWeek < 0.2) return 'stalled'
   if (thisWeek < lastWeek - 0.2) return 'stalling'
   if (thisWeek > lastWeek + 0.2) return 'building'
@@ -1084,7 +1089,7 @@ function setupIpcHandlers() {
     if (existsSync(configPath)) {
       return JSON.parse(readTextSafe(configPath))
     }
-    return { api_key: '', model: 'minimax/minimax-m2.7', vault_path: '', theme: 'dark' }
+    return { api_key: '', model: 'openai/gpt-4o-2024-11-20', vault_path: '', theme: 'dark' }
   })
 
   ipcMain.handle('config_save', async (_, config: any) => {
@@ -1353,7 +1358,7 @@ function setupIpcHandlers() {
         let hasEntries = false
         if (i < lines.length) {
           const nextLine = lines[i].trim()
-          if (nextLine && 'txne*>k'.includes(nextLine[0]) && nextLine[1] === ' ') {
+          if (nextLine && 'txne*>k<'.includes(nextLine[0]) && nextLine[1] === ' ') {
             hasEntries = true
           }
         }
