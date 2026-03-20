@@ -16,11 +16,12 @@
     "appId": "com.bujo.vault",
     "productName": "BuJo Vault",
     "directories": {
-      "output": "dist-electron"
+      "output": "release"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*",
+      "dist-electron/main.js",
+      "dist-electron/preload.js",
       "package.json"
     ],
     "mac": {
