@@ -1,0 +1,54 @@
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { format, subDays } from 'date-fns';
+import { DailyLog } from '../types';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function getGreeting(): string {
+  const hour = new Date().getHours();
+  const day = new Date().getDay(); // 0=Sun, 1=Mon, ..., 5=Fri
+
+  if (hour >= 5 && hour < 12) {
+    if (day === 1) return "Monday. Set your priorities for the week.";
+    return "Good morning. Let's focus.";
+  }
+  if (hour >= 12 && hour < 17) {
+    return "Good afternoon. Keep the momentum.";
+  }
+  if (hour >= 17 && hour < 22) {
+    if (day === 5) return "Friday evening. Migrate before the weekend.";
+    return "Good evening. Time to wind down.";
+  }
+  return "It's late. No pressure.";
+}
+
+export function getTodayDateString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function calculateStreak(logs: Record<string, DailyLog>): number {
+  let streak = 0;
+  let currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+
+  while (true) {
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const log = logs[dateStr];
+    
+    if (log && log.entries && log.entries.length > 0) {
+      streak++;
+      currentDate = subDays(currentDate, 1);
+    } else {
+      if (streak === 0 && dateStr === format(new Date(), 'yyyy-MM-dd')) {
+        currentDate = subDays(currentDate, 1);
+        continue;
+      }
+      break;
+    }
+  }
+  return streak;
+}

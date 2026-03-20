@@ -1,0 +1,64 @@
+{
+  "name": "bujo-vault",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "electron:dev": "vite",
+    "electron:build": "vite build && electron-builder"
+  },
+  "build": {
+    "appId": "com.bujo.vault",
+    "productName": "BuJo Vault",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "dir",
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.5.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^22.14.0",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.4.21",
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
+    "tailwindcss": "^4.1.14",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-electron": "^0.29.1",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  }
+}
