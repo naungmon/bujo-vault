@@ -56,6 +56,7 @@ const bujoApi = {
   // Config
   configGet: () => ipcRenderer.invoke('config_get'),
   configSave: (config: any) => ipcRenderer.invoke('config_save', config),
+  vaultPickFolder: () => ipcRenderer.invoke('vault_pick_folder'),
 
   // Templates
   templatesList: () => ipcRenderer.invoke('templates_list'),

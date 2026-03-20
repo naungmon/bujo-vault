@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron'
+import { app, BrowserWindow, ipcMain, globalShortcut, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs'
@@ -829,6 +829,16 @@ function setupIpcHandlers() {
     const configPath = path.join(configDir, 'config.json')
     writeFileSync(configPath, JSON.stringify(config, null, 2))
     return { success: true }
+  })
+
+  ipcMain.handle('vault_pick_folder', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Vault Folder',
+      defaultPath: vaultPath,
+    })
+    if (result.canceled || result.filePaths.length === 0) return { path: null }
+    return { path: result.filePaths[0] }
   })
 
   ipcMain.handle('start_listening', async () => {

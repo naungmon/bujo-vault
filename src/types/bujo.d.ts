@@ -60,6 +60,7 @@ export interface BuJoApi {
   // Config
   configGet(): Promise<{ api_key: string; model: string; vault_path: string; theme: string }>
   configSave(config: any): Promise<{ success: boolean }>
+  vaultPickFolder(): Promise<{ path: string | null }>
 
   // Templates
   templatesList(): Promise<string[]>
