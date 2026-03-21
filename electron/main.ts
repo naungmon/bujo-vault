@@ -704,51 +704,6 @@ function tasksPerDayAvg(): number {
   return daysWithEntries > 0 ? Math.round((totalDone / daysWithEntries) * 10) / 10 : 0
 }
 
-function stallDuration(killText: string): number | null {
-  const pattern = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/
-  const m = killText.match(pattern)
-  if (!m) return null
-  const killDateStr = m[1]
-  const taskText = m[2].toLowerCase().trim()
-  let firstSeen: string | null = null
-  for (const log of loadAll()) {
-    for (const entry of log.entries) {
-      if ((entry.type === 'task' || entry.type === 'priority') && entry.content.toLowerCase().trim() === taskText) {
-        if (!firstSeen || log.date < firstSeen) firstSeen = log.date
-      }
-    }
-  }
-  if (!firstSeen) return null
-  const killDate = new Date(killDateStr)
-  const first = new Date(firstSeen)
-  return Math.round((killDate.getTime() - first.getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function stallStats(theme?: string): { avg: number; median: number; max: number; count: number } {
-  const durations: number[] = []
-  const pattern = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/
-  for (const log of loadAll()) {
-    for (const entry of log.entries) {
-      if (entry.type !== 'killed') continue
-      const m = entry.content.match(pattern)
-      if (!m) continue
-      const rest = m[2]
-      const words = rest.toLowerCase().split(/\s+/)
-      if (!words.length) continue
-      if (theme && words[0] !== theme.toLowerCase()) continue
-      const duration = stallDuration(entry.content)
-      if (duration !== null) durations.push(duration)
-    }
-  }
-  if (!durations.length) return { avg: 0, median: 0, max: 0, count: 0 }
-  durations.sort((a, b) => a - b)
-  const count = durations.length
-  const avg = Math.round((durations.reduce((s, d) => s + d, 0) / count) * 10) / 10
-  const mid = Math.floor(count / 2)
-  const median = count % 2 === 1 ? durations[mid] : (durations[mid - 1] + durations[mid]) / 2
-  return { avg, median, max: Math.max(...durations), count }
-}
-
 function eventDensityMapping(): Record<string, { days: number; completionRate: number }> {
   const buckets: Record<string, { days: number; done: number; pending: number }> = {
     low: { days: 0, done: 0, pending: 0 },
@@ -805,10 +760,6 @@ function coachingNudge(): string {
   const killThemes = killThemesAnalysis()
   const topTheme = Object.entries(killThemes)[0]
   if (topTheme && topTheme[1] >= 3) {
-    const stats = stallStats(topTheme[0])
-    if (stats.count >= 3 && stats.avg > 0) {
-      return `You carried '${topTheme[0]}' for ${stats.avg} days on average before dropping (${topTheme[1]} times).`
-    }
     return `You tend to drop ${topTheme[0]} tasks (${topTheme[1]} times). Worth examining why.`
   }
   const heavy = noteHeavyDays()
@@ -868,7 +819,6 @@ function createWindow() {
 }
 
 function setupIpcHandlers() {
-  ipcMain.handle('vault_path', () => vaultPath)
   ipcMain.handle('vault_ensure', () => {
     ensureVaultDirs(vaultPath)
     return { success: true }
@@ -1056,10 +1006,6 @@ function setupIpcHandlers() {
     return { description: entry.description, filePath: entry.filePath }
   })
 
-  ipcMain.handle('parse_entry', async (_, text: string) => {
-    return parseQuickInput(text)
-  })
-
   ipcMain.handle('smart_parse', async (_, text: string) => {
     if (hasExplicitPrefix(text)) {
       return [parseQuickInput(text)]
@@ -1071,13 +1017,6 @@ function setupIpcHandlers() {
     }
 
     return [['task', text]]
-  })
-
-  ipcMain.handle('ai_config_check', async () => {
-    return {
-      has_key: !!getApiKey(),
-      model: getModel()
-    }
   })
 
   ipcMain.handle('analytics_streak', async () => {
@@ -1250,29 +1189,6 @@ function setupIpcHandlers() {
     return { success: true }
   })
 
-  // Reflections
-  ipcMain.handle('reflections_list', async () => {
-    const reflDir = path.join(vaultPath, 'reflections')
-    if (!existsSync(reflDir)) {
-      mkdirSync(reflDir, { recursive: true })
-      return []
-    }
-    return readdirSync(reflDir).filter(f => f.endsWith('.md')).map(f => f.replace('.md', ''))
-  })
-
-  ipcMain.handle('reflections_get', async (_, date: string) => {
-    const filePath = path.join(vaultPath, 'reflections', `${date}.md`)
-    if (!existsSync(filePath)) return { content: '', date }
-    return { content: readTextSafe(filePath), date }
-  })
-
-  ipcMain.handle('reflections_save', async (_, date: string, content: string) => {
-    const reflDir = path.join(vaultPath, 'reflections')
-    if (!existsSync(reflDir)) mkdirSync(reflDir, { recursive: true })
-    writeFileSync(path.join(reflDir, `${date}.md`), content)
-    return { success: true }
-  })
-
   // Vault info
   ipcMain.handle('vault_info', async () => {
     return { path: vaultPath }
@@ -1326,7 +1242,6 @@ function setupIpcHandlers() {
       totalEntries,
       stuckTasks: migrationPatterns().slice(0, 5),
       killThemes: killThemesAnalysis(),
-      stallStats: stallStats(),
       eventDensity: eventDensityMapping(),
       noteHeavyDays: noteHeavyDays().map(d => d.date),
       nudge: coachingNudge(),

@@ -5,7 +5,6 @@ interface CoachData {
   priorityAlignment: number; totalEntries: number;
   stuckTasks: Array<{ text: string; count: number }>;
   killThemes: Record<string, number>;
-  stallStats: { avg: number; median: number; max: number; count: number };
   eventDensity: Record<string, { days: number; completionRate: number }>;
   noteHeavyDays: string[]; nudge: string; empty: boolean;
   productiveTime: string; tasksPerDayAvg: number;
@@ -115,15 +114,6 @@ export function CoachView({ onClose }: CoachViewProps) {
                   </span>
                 ))}
               </div>
-            </Section>
-          )}
-
-          {data.stallStats.count > 0 && (
-            <Section title="Task lifespan">
-              <p className="text-sm text-zinc-400">
-                Avg {data.stallStats.avg} days, median {data.stallStats.median} days, max {data.stallStats.max} days
-                across {data.stallStats.count} killed tasks.
-              </p>
             </Section>
           )}
 

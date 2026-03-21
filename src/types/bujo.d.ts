@@ -1,6 +1,5 @@
 export interface BuJoApi {
   // Vault operations
-  vaultPath(): Promise<string>
   vaultEnsure(): Promise<{ success: boolean }>
   vaultInfo(): Promise<{ path: string }>
 
@@ -44,11 +43,7 @@ export interface BuJoApi {
   migrateEntry(fromDate: string, toDate: string, entryId: string): Promise<{ success: boolean; error?: string }>
 
   // Parsing
-  parseEntry(text: string): Promise<[string, string]>
   smartParse(text: string): Promise<Array<[string, string]>>
-
-  // AI
-  aiConfigCheck(): Promise<{ has_key: boolean; model: string }>
 
   // Analytics
   analyticsStreak(): Promise<number>
@@ -61,7 +56,6 @@ export interface BuJoApi {
     priorityAlignment: number; totalEntries: number;
     stuckTasks: Array<{ text: string; count: number }>;
     killThemes: Record<string, number>;
-    stallStats: { avg: number; median: number; max: number; count: number };
     eventDensity: Record<string, { days: number; completionRate: number }>;
     noteHeavyDays: string[]; nudge: string; empty: boolean;
     productiveTime: string; tasksPerDayAvg: number
@@ -86,11 +80,6 @@ export interface BuJoApi {
   // Templates
   templatesList(): Promise<string[]>
   templatesApply(name: string, targetDate: string): Promise<{ success: boolean; error?: string }>
-
-  // Reflections
-  reflectionsList(): Promise<string[]>
-  reflectionsGet(date: string): Promise<{ content: string; date: string }>
-  reflectionsSave(date: string, content: string): Promise<{ success: boolean }>
 
   // File watching
   startListening(): Promise<void>

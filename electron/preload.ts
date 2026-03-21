@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const bujoApi = {
   // Vault operations
-  vaultPath: () => ipcRenderer.invoke('vault_path'),
   vaultEnsure: () => ipcRenderer.invoke('vault_ensure'),
   vaultInfo: () => ipcRenderer.invoke('vault_info'),
 
@@ -43,11 +42,7 @@ const bujoApi = {
     ipcRenderer.invoke('migrate_entry', fromDate, toDate, entryId),
 
   // Parsing
-  parseEntry: (text: string) => ipcRenderer.invoke('parse_entry', text),
   smartParse: (text: string) => ipcRenderer.invoke('smart_parse', text),
-
-  // AI
-  aiConfigCheck: () => ipcRenderer.invoke('ai_config_check'),
 
   // Analytics
   analyticsStreak: () => ipcRenderer.invoke('analytics_streak'),
@@ -76,12 +71,6 @@ const bujoApi = {
   templatesList: () => ipcRenderer.invoke('templates_list'),
   templatesApply: (name: string, targetDate: string) =>
     ipcRenderer.invoke('templates_apply', name, targetDate),
-
-  // Reflections
-  reflectionsList: () => ipcRenderer.invoke('reflections_list'),
-  reflectionsGet: (date: string) => ipcRenderer.invoke('reflections_get', date),
-  reflectionsSave: (date: string, content: string) =>
-    ipcRenderer.invoke('reflections_save', date, content),
 
   // File watching
   startListening: () => ipcRenderer.invoke('start_listening'),
