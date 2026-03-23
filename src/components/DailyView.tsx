@@ -28,6 +28,15 @@ export function DailyView() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check for calendar navigation date
+  useEffect(() => {
+    const navDate = (window as any).__bujoNavigateDate;
+    if (navDate) {
+      setDate(navDate);
+      (window as any).__bujoNavigateDate = undefined;
+    }
+  });
+
   // Session detection: focus input on empty day, focus list on existing
   useEffect(() => {
     const dayLog = logs[date];

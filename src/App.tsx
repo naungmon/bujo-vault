@@ -10,6 +10,7 @@ import { FutureLog } from './components/FutureLog';
 import { MigrationView } from './components/MigrationView';
 import { CoachView } from './components/CoachView';
 import { HelpOverlay } from './components/HelpOverlay';
+import { CalendarView } from './components/CalendarView';
 
 function MainContent() {
   const { currentView } = useVault();
@@ -48,6 +49,7 @@ function MainContent() {
   return (
     <div className="flex-1 h-full overflow-hidden bg-zinc-950">
       {currentView === 'daily' && <DailyView />}
+      {currentView === 'calendar' && <CalendarView />}
       {currentView === 'monthly' && <MonthlyView />}
       {currentView === 'future' && <FutureLog />}
       {currentView === 'migration' && <MigrationView />}

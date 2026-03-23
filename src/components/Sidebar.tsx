@@ -45,6 +45,7 @@ export function Sidebar() {
 
   const navItems: { id: ViewType | 'tomorrow'; label: string; icon: React.ReactNode; isDropTarget?: boolean }[] = [
     { id: 'daily', label: 'Daily Log', icon: <FileText size={18} /> },
+    { id: 'calendar', label: 'Calendar', icon: <Calendar size={18} /> },
     { id: 'tomorrow', label: 'Migrate to Tomorrow', icon: <ArrowRight size={18} />, isDropTarget: true },
     { id: 'monthly', label: 'Monthly Log', icon: <CalendarDays size={18} />, isDropTarget: true },
     { id: 'future', label: 'Future Log', icon: <Calendar size={18} />, isDropTarget: true },

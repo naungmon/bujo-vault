@@ -12,4 +12,4 @@ export interface DailyLog {
   entries: Entry[];
 }
 
-export type ViewType = 'daily' | 'monthly' | 'future' | 'migration' | 'review' | 'search' | 'coach' | 'settings';
+export type ViewType = 'daily' | 'calendar' | 'monthly' | 'future' | 'migration' | 'review' | 'search' | 'coach' | 'settings';
