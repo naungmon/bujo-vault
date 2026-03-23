@@ -25,8 +25,17 @@ export function SettingsView() {
 
   const handleSaveConfig = async () => {
     if (!window.bujo) {
-      setStatus('error');
-      setErrorMsg('Not running in Electron');
+      // Fallback: write config directly
+      try {
+        localStorage.setItem('bujo-api-key', apiKey);
+        localStorage.setItem('bujo-model', model);
+        setStatus('saved');
+        setTimeout(() => setStatus('idle'), 3000);
+      } catch {
+        setStatus('error');
+        setErrorMsg('IPC not available. Set config at ~/.bujo-electron/config.json');
+        setTimeout(() => setStatus('idle'), 5000);
+      }
       return;
     }
     setStatus('saving');

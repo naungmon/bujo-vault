@@ -17,14 +17,19 @@ interface CoachViewProps {
 export function CoachView({ onClose }: CoachViewProps) {
   const [data, setData] = useState<CoachData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (window.bujo) {
       window.bujo.analyticsCoach().then(d => {
         setData(d);
         setLoading(false);
-      }).catch(() => setLoading(false));
+      }).catch((err) => {
+        setError(err.message || 'Failed to load');
+        setLoading(false);
+      });
     } else {
+      setError('IPC not available');
       setLoading(false);
     }
   }, []);
@@ -38,19 +43,32 @@ export function CoachView({ onClose }: CoachViewProps) {
   }, [onClose]);
 
   if (loading) return (
-    <div className="flex-1 flex items-center justify-center">
+    <div className="flex flex-col h-full bg-zinc-950 items-center justify-center">
       <p className="text-zinc-500 text-sm">Analyzing...</p>
     </div>
   );
 
+  if (error) return (
+    <div className="flex flex-col h-full bg-zinc-950 items-center justify-center">
+      <div className="text-center max-w-md px-8">
+        <p className="text-2xl font-serif text-zinc-300 mb-4">Not ready yet</p>
+        <p className="text-sm text-zinc-500">
+          {error === 'IPC not available'
+            ? 'Open this app from the Electron window, not a browser.'
+            : 'Start capturing entries. You need at least 3 today to unlock coaching.'}
+        </p>
+      </div>
+    </div>
+  );
+
   if (!data) return (
-    <div className="flex-1 flex items-center justify-center">
-      <p className="text-zinc-500 text-sm">Failed to load analytics.</p>
+    <div className="flex flex-col h-full bg-zinc-950 items-center justify-center">
+      <p className="text-zinc-500 text-sm">No data available.</p>
     </div>
   );
 
   if (data.empty) return (
-    <div className="flex-1 flex items-center justify-center">
+    <div className="flex flex-col h-full bg-zinc-950 items-center justify-center">
       <div className="text-center max-w-md px-8">
         <p className="text-2xl font-serif text-zinc-300 mb-4">
           {data.totalEntries === 0 ? "Nothing captured yet today." :
